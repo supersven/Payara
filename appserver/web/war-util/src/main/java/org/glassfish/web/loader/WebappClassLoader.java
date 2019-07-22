@@ -882,13 +882,14 @@ public class WebappClassLoader
         } catch (NamingException e) {
             // Ignore
         }
-
-        JarFile[] result2 = new JarFile[jarFiles.length + 1];
-        for (i = 0; i < jarFiles.length; i++) {
-            result2[i] = jarFiles[i];
+        synchronized (jarFilesLock) {
+            JarFile[] result2 = new JarFile[jarFiles.length + 1];
+            for (i = 0; i < jarFiles.length; i++) {
+                result2[i] = jarFiles[i];
+            }
+            result2[jarFiles.length] = jarFile;
+            jarFiles = result2;
         }
-        result2[jarFiles.length] = jarFile;
-        jarFiles = result2;
 
         // Add the file to the list
         File[] result4 = new File[jarRealFiles.length + 1];
@@ -1851,16 +1852,18 @@ public class WebappClassLoader
             files[i] = null;
         }
 
-        length = jarFiles.length;
-        for (int i = 0; i < length; i++) {
-            try {
-                if (jarFiles[i] != null) {
-                    jarFiles[i].close();
+        synchronized (jarFilesLock) {
+            length = jarFiles.length;
+            for (int i = 0; i < length; i++) {
+                try {
+                    if (jarFiles[i] != null) {
+                        jarFiles[i].close();
+                    }
+                } catch (IOException e) {
+                    // Ignore
                 }
-            } catch (IOException e) {
-                // Ignore
+                jarFiles[i] = null;
             }
-            jarFiles[i] = null;
         }
 
         try {
@@ -1875,7 +1878,9 @@ public class WebappClassLoader
         repositories = null;
         repositoryURLs = null;
         files = null;
-        jarFiles = null;
+        synchronized (jarFilesLock) {
+            jarFiles = null;
+        }
         jarRealFiles = null;
         jarPath = null;
         jarNames.clear();
@@ -2757,7 +2762,7 @@ public class WebappClassLoader
         entry = findResourceInternalFromRepositories(name, path);
 
         if (entry == null) {
-            synchronized (jarFiles) {
+            synchronized (jarFilesLock) {
                 entry = findResourceInternalFromJars(name, path);
             }
         }
@@ -2999,7 +3004,9 @@ public class WebappClassLoader
     }
 
     public File getExtractedResourcePath(String path) {
-        extractResources();
+        synchronized (jarFilesLock) {
+            extractResources();
+        }
         File extractedResource = new File(loaderDir, path);
         return (extractedResource.exists() ? extractedResource : null);
     }
